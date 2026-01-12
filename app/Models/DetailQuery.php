@@ -11,7 +11,7 @@ class DetailQuery extends Model
 
     protected $table = 'details_queries';
 
-    protected $fillable = ['requested_query_id','full_name','document_type','document_number','status'];
+    protected $fillable = ['requested_query_id','full_name','document_type','document_number','status','source'];
 
     public function requestedQuery()
     {

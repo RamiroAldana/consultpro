@@ -16,21 +16,9 @@
                 </a>
             </li>
 
-            <li class="nav-item">
-                <a class="nav-link d-flex align-items-center py-2 rounded" data-bs-toggle="collapse" href="#usersSubmenu" role="button" aria-expanded="false" aria-controls="usersSubmenu">
-                    <span class="me-2 text-warning"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-people" viewBox="0 0 16 16"><path d="M5 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM11 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/><path fill-rule="evenodd" d="M0 8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v1H0V8z"/></svg></span>
-                    Consultas
-                </a>
-                <div class="collapse" id="usersSubmenu">
-                    <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-                        <li><a href="#" class="nav-link ps-4">Listado</a></li>
-                        <li><a href="#" class="nav-link ps-4">Crear usuario</a></li>
-                    </ul>
-                </div>
-            </li>
 
             <li class="nav-item">
-                <a class="nav-link d-flex align-items-center py-2 rounded" href="consultas_index">
+                <a class="nav-link d-flex align-items-center py-2 rounded" href="/consultas_index">
                     <span class="me-2 text-danger"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-gear" viewBox="0 0 16 16"><path d="M8 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg></span>
                     Consultas
                 </a>

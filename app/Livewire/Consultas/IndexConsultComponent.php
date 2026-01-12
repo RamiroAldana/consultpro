@@ -12,6 +12,10 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use App\Models\RequestedQuery;
 use App\Models\DetailQuery;
 use App\Models\ResultQuery;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use Illuminate\Http\File as HttpFile;
 
 class IndexConsultComponent extends Component
 {
@@ -24,12 +28,163 @@ class IndexConsultComponent extends Component
     public $excel;
 
     public $availableSources = [
-        'RUNT Personas',
-        'Simmit',
-        'Rama Judicial',
+        'runt_personas' => 'RUNT Personas',
+        'simmit' => 'SIMMIT',
+        'rama_judicial' => 'Rama Judicial',
     ];
 
     protected $updatesQueryString = ['search', 'perPage'];
+
+    // report properties
+    public $reportRequestedId = null;
+    public $reportTotals = [
+        'total' => 0,
+        'success' => 0,
+        'failed' => 0,
+        'pending' => 0,
+    ];
+    public $reportGenerating = false;
+
+    public function getSourceName($reference)
+    {
+        return $this->availableSources[$reference] ?? $reference;
+    }
+
+    public function openReportModal($requestedId)
+    {
+        $this->reportRequestedId = $requestedId;
+        $this->reportTotals = ['total'=>0,'success'=>0,'failed'=>0,'pending'=>0];
+
+        $requested = RequestedQuery::with(['details.results'])->find($requestedId);
+        if (!$requested) {
+            $this->addError('report', 'Solicitud no encontrada.');
+            return;
+        }
+
+        $total = 0; $succ = 0; $fail = 0; $pend = 0;
+        foreach ($requested->details as $d) {
+            $total++;
+            $latest = $d->results->sortByDesc('created_at')->first();
+            if (!$latest) { $pend++; continue; }
+            $ok = false; $err = false;
+            if (!empty($latest->status_response)) {
+                if (strtolower($latest->status_response) === 'ok') $ok = true;
+                if (strtolower($latest->status_response) === 'error') $err = true;
+            }
+            if (!$ok && is_array($latest->response_json) && isset($latest->response_json['success'])) {
+                if ($latest->response_json['success']) $ok = true; else $err = true;
+            }
+            if ($ok) $succ++; elseif ($err) $fail++; else $pend++;
+        }
+
+        $this->reportTotals = ['total'=>$total,'success'=>$succ,'failed'=>$fail,'pending'=>$pend];
+
+        // open modal via browser event
+        $this->dispatch('open-report-modal');
+    }
+
+    public function generateReport()
+    {
+        if (!$this->reportRequestedId) {
+            $this->addError('report', 'No hay solicitud seleccionada.');
+            return;
+        }
+
+        if (!class_exists('\PhpOffice\\PhpSpreadsheet\\Spreadsheet')) {
+            $this->addError('report', 'Para generar el informe instale phpoffice/phpspreadsheet (composer require phpoffice/phpspreadsheet).');
+            return;
+        }
+
+        $this->reportGenerating = true;
+
+        $requested = RequestedQuery::with(['details.results'])->find($this->reportRequestedId);
+        if (!$requested) {
+            $this->addError('report', 'Solicitud no encontrada.');
+            $this->reportGenerating = false;
+            return;
+        }
+
+        // ensure reports directory
+        Storage::disk('public')->makeDirectory('reports');
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Informe_'.$requested->id);
+
+        $headers = ['Detalle ID','Nombre','Tipo documento','Número documento','Fuente','Estado detalle','Resultado estado','Mensaje/Detalle','Imagen'];
+        $col = 'A';
+        foreach ($headers as $h) {
+            $sheet->setCellValue($col.'1', $h);
+            $sheet->getStyle($col.'1')->getFont()->setBold(true);
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+            $col++;
+        }
+
+        $row = 2;
+        foreach ($requested->details as $detail) {
+            $latest = $detail->results->sortByDesc('created_at')->first();
+            $mensaje = '';
+            $resultStatus = $latest->status_response ?? ($latest->status ?? '');
+            if ($latest && is_array($latest->response_json)) {
+                $mensaje = $latest->response_json['mensaje'] ?? $latest->response_json['detalle'] ?? ($latest->response_json['mensaje'] ?? '');
+            }
+
+            $sheet->setCellValue('A'.$row, $detail->id);
+            $sheet->setCellValue('B'.$row, $detail->full_name ?? '');
+            $sheet->setCellValue('C'.$row, $detail->document_type ?? '');
+            $sheet->setCellValue('D'.$row, $detail->document_number ?? '');
+            $sheet->setCellValue('E'.$row, $this->getSourceName($detail->source ?? ''));
+            $sheet->setCellValue('F'.$row, $detail->status ?? '');
+            $sheet->setCellValue('G'.$row, $resultStatus);
+            $sheet->setCellValue('H'.$row, $mensaje);
+
+            // image handling
+            $imagePath = $latest->image_path ?? ($latest->response_json['screenshots']['resultado'] ?? null);
+            if ($imagePath) {
+                $tmp = sys_get_temp_dir().'/report_img_'.uniqid().'.png';
+                try {
+                    if (str_starts_with($imagePath, '/')) {
+                        $full = public_path($imagePath);
+                        if (file_exists($full)) copy($full, $tmp);
+                    } else {
+                        // try storage public
+                        $p = ltrim($imagePath, '/');
+                        if (Storage::disk('public')->exists($p)) {
+                            copy(Storage::disk('public')->path($p), $tmp);
+                        } else {
+                            $contents = @file_get_contents($imagePath);
+                            if ($contents) file_put_contents($tmp, $contents);
+                        }
+                    }
+
+                    if (file_exists($tmp)) {
+                        $drawing = new Drawing();
+                        $drawing->setPath($tmp);
+                        $drawing->setHeight(80);
+                        $drawing->setCoordinates('I'.$row);
+                        $drawing->setWorksheet($sheet);
+                        $sheet->getRowDimension($row)->setRowHeight(60);
+                    }
+                } catch (\Exception $e) {
+                    // ignore image
+                }
+            }
+
+            $row++;
+        }
+
+        $filename = 'informe_consulta_'.$requested->id.'_'.date('Ymd_His').'.xlsx';
+        $tmpfile = storage_path('app/public/reports/'.$filename);
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($tmpfile);
+
+        $url = asset('storage/reports/'.$filename);
+        $this->reportGenerating = false;
+        $this->dispatch('report-ready', ['url' => $url]);
+        $this->dispatch('close-report-modal');
+    }
+
+    // note: detail view is handled via dedicated route; no modal here
 
     public function updatingSearch()
     {
@@ -109,14 +264,20 @@ class IndexConsultComponent extends Component
                     if (str_contains($lk, 'numero') || str_contains($lk, 'num')) $map['document_number'] = $v;
                 }
                 if (empty($map)) continue;
-                DetailQuery::create([
-                    'requested_query_id' => $requested->id,
-                    'full_name' => $map['full_name'] ?? null,
-                    'document_type' => $map['document_type'] ?? null,
-                    'document_number' => $map['document_number'] ?? null,
-                    'status' => 'pendiente',
-                ]);
-                $created++;
+
+                // create one detail row per selected source so each detail has a source
+                $sourcesToUse = $this->selectedSources ?: ['default'];
+                foreach ($sourcesToUse as $src) {
+                    DetailQuery::create([
+                        'requested_query_id' => $requested->id,
+                        'full_name' => $map['full_name'] ?? null,
+                        'document_type' => $map['document_type'] ?? null,
+                        'document_number' => $map['document_number'] ?? null,
+                        'status' => 'pendiente',
+                        'source' => $src,
+                    ]);
+                    $created++;
+                }
             }
 
             // If table has count column, update it
@@ -151,7 +312,8 @@ class IndexConsultComponent extends Component
     public function render()
     {
         if (Schema::hasTable('requested_queries')) {
-            $jobs = RequestedQuery::orderBy('created_at', 'desc')->paginate($this->perPage);
+            // include count of related details to show number of records per request
+            $jobs = RequestedQuery::withCount('details')->orderBy('created_at', 'desc')->paginate($this->perPage);
         } elseif (Schema::hasTable('consulta_jobs') || Schema::hasTable('jobs')) {
             $table = Schema::hasTable('consulta_jobs') ? 'consulta_jobs' : 'jobs';
             $query = DB::table($table)->select('*');

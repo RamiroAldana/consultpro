@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Livewire\Consultas\IndexConsultComponent;  
+use App\Livewire\Consultas\DetailsConsultComponent;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,5 +31,8 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/consultas_index', IndexConsultComponent::class)->name('consultas_index');
+
+// Detail route for a requested consulta (mounts Livewire component)
+Route::get('/consultas/{requestedId}', DetailsConsultComponent::class)->name('consultas.detail');
 
 require __DIR__.'/auth.php';
