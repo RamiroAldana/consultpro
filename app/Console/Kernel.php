@@ -12,8 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Process pending consults every 5 minutes
-        $schedule->command('consults:process-pending')->everyFiveMinutes()->withoutOverlapping();
+        // Process pending consults every 3 minutes
+        $schedule->command('consults:process-pending')->everyThreeMinutes()->withoutOverlapping();
     }
 
     /**

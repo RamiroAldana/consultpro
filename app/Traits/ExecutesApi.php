@@ -37,17 +37,20 @@ trait ExecutesApi
         $interval = 3; // seconds between retries
         $deadline = time() + $maxWait;
 
+        // base URL for internal consult APIs — configurable via .env
+        $apiBase = rtrim(env('CONSULTS_API_BASE', 'http://75.119.150.202:8080'), '/');
+
         try {
             // choose endpoint and payload depending on source
             $source = $detail->source ?? ($dataConsult['source'] ?? 'runt_personas');
 
             if ($source === 'simmit' || $source === 'simit') {
                 // SIMIT expects only num_doc
-                $url = 'http://localhost:5000/simit/consult_plate';
+                $url = $apiBase . '/simit/consult_plate';
                 $payload = ['num_doc' => $dataConsult['num_doc'] ?? ($dataConsult['document_number'] ?? null)];
             } elseif ($source === 'rama_judicial' || $source === 'rama') {
                 // Rama Judicial expects tipo_persona, nombre_razon_social, actuaciones_recientes
-                $url = 'http://localhost:5000/ramajudicial/consult_rj';
+                $url = $apiBase . '/ramajudicial/consult_rj';
                 $payload = [
                     'tipo_persona' => $dataConsult['tipo_persona'] ?? 'N',
                     'nombre_razon_social' => $dataConsult['nombre_razon_social'] ?? ($detail->full_name ?? null),
@@ -55,7 +58,7 @@ trait ExecutesApi
                 ];
             } else {
                 // default to RUNT persons
-                $url = 'http://localhost:5000/runt/consult_person';
+                $url = $apiBase . '/runt/consult_person';
                 $payload = [
                     'type_doc' => $dataConsult['type_doc'] ?? ($dataConsult['document_type'] ?? null),
                     'num_doc' => $dataConsult['num_doc'] ?? ($dataConsult['document_number'] ?? null),
@@ -92,7 +95,7 @@ trait ExecutesApi
 
             if (!empty($img)) {
                 if (str_starts_with($img, '/')) {
-                    $imagePath = rtrim('http://localhost:5000', '/') . $img;
+                    $imagePath = $apiBase . $img;
                 } else {
                     $imagePath = $img;
                 }
