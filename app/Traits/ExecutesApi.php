@@ -33,7 +33,7 @@ trait ExecutesApi
             ]);
         }
 
-        $maxWait = 200; // seconds total to wait for completion
+        $maxWait = 300; // seconds total to wait for completion
         $interval = 3; // seconds between retries
         $deadline = time() + $maxWait;
 
