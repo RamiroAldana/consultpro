@@ -18,7 +18,7 @@ use App\Livewire\Consultas\DetailsConsultComponent;
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->middleware(['auth', 'verified'])->name('home');
 
 Route::get('/dashboard', function () {
     return view('dashboard');
