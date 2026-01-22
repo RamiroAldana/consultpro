@@ -12,6 +12,7 @@ class DetailsConsultComponent extends Component
 {
     use ExecutesApi;
     public $requestedId;
+    protected $listeners = ['deleteDetail', 'reactivateDetail'];
     public $requested;
     public $details;
     public $selectedResult = null;
@@ -109,5 +110,36 @@ class DetailsConsultComponent extends Component
         $this->loadData();
         $this->dispatch('close-exec-modal');
         session()->flash('message', 'Consulta iniciada.');
+    }
+
+    public function deleteDetail($id)
+    {
+        $detail = DetailQuery::find($id);
+        if (!$detail) {
+            session()->flash('error', 'Registro no encontrado.');
+            return;
+        }
+
+        // Remove related results first
+        ResultQuery::where('detail_query_id', $detail->id)->delete();
+        $detail->delete();
+
+        $this->loadData();
+        session()->flash('message', 'Registro eliminado correctamente.');
+    }
+
+    public function reactivateDetail($id)
+    {
+        $detail = DetailQuery::find($id);
+        if (!$detail) {
+            session()->flash('error', 'Registro no encontrado.');
+            return;
+        }
+
+        $detail->status = 'pendiente';
+        $detail->save();
+
+        $this->loadData();
+        session()->flash('message', 'Registro marcado como pendiente para reconsulta.');
     }
 }

@@ -58,7 +58,7 @@
                     <th>Tipo</th>
                     <th>Número</th>
                     <th>Estado</th>
-                    <th class="text-end">Acciones</th>
+                    <th class="text-center">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -100,10 +100,18 @@
                             @endphp
                             <span class="badge {{ $dcls }}">{{ $dlabel }}</span>
                         </td>
-                        <td class="text-end">
+                        <td class="text-center">
                             {{-- Use Livewire to load the detail into component and open modal --}}
-                            <button type="button" wire:click="consultDetail({{ $d->id }})" class="btn btn-sm btn-outline-success">Ejecutar Consulta</button>
-                            <button wire:click="showResult({{ $d->id }})" class="btn btn-sm btn-outline-primary ms-1">Ver resultado</button>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Acciones</button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#" wire:click.prevent="consultDetail({{ $d->id }})">Ejecutar Consulta</a></li>
+                                        <li><a class="dropdown-item" href="#" wire:click.prevent="showResult({{ $d->id }})">Ver resultado</a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="confirmReactivate({{ $d->id }}); return false;">Reactivar</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="#" onclick="confirmDelete({{ $d->id }}); return false;">Eliminar</a></li>
+                                    </ul>
+                                </div>
                         </td>
                     </tr>
                 @empty
@@ -151,6 +159,41 @@
                 if (modal) modal.hide();
             });
         });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        function confirmDelete(id) {
+            Swal.fire({
+                title: '¿Eliminar registro?',
+                text: 'Esta acción no se puede deshacer.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Eliminar',
+                cancelButtonText: 'Cancelar',
+            }).then(function(result){
+                if (result.isConfirmed) {
+                    Livewire.emit('deleteDetail', id);
+                    Swal.fire('Eliminado', 'Registro eliminado correctamente.', 'success');
+                }
+            });
+        }
+
+        function confirmReactivate(id) {
+            Swal.fire({
+                title: 'Reactivar registro?',
+                text: 'Se marcará como pendiente para reconsulta.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Reactivar',
+                cancelButtonText: 'Cancelar',
+            }).then(function(result){
+                if (result.isConfirmed) {
+                    Livewire.emit('reactivateDetail', id);
+                    Swal.fire('Listo', 'Registro marcado como pendiente.', 'success');
+                }
+            });
+        }
     </script>
 
 </div>
