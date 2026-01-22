@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Models\DetailQuery;
 use App\Models\RequestedQuery;
 use App\Traits\ExecutesApi;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ProcessPendingConsults extends Command
@@ -27,34 +28,44 @@ class ProcessPendingConsults extends Command
 
     public function handle()
     {
+        Log::info('[ProcessPendingConsults] Iniciando escaneo de consultas pendientes');
         $this->info('Scanning for the first pending requested query...');
 
         while (true) {
             $rq = RequestedQuery::where('status', 'pendiente')->orderBy('id')->first();
 
             if (!$rq) {
+                Log::info('[ProcessPendingConsults] No se encontraron consultas pendientes');
                 $this->info('No pending requested queries found.');
                 break;
             }
+
+            Log::info("[ProcessPendingConsults] Encontrada consulta pendiente ID: {$rq->id}");
 
             // If this requested has no pending details, finalize and continue to next
             $pendingCount = $rq->details()->where('status', 'pendiente')->count();
             if ($pendingCount === 0) {
                 $rq->status = 'finalizado';
                 $rq->save();
+                Log::info("[ProcessPendingConsults] Consulta {$rq->id} sin detalles pendientes, marcada como finalizado");
                 $this->info("Requested {$rq->id} had no pending details; marked finalizado.");
                 // continue to next pending requested
                 continue;
             }
+
+            Log::info("[ProcessPendingConsults] Consulta {$rq->id} tiene {$pendingCount} detalles pendientes");
 
             // Try to atomically change status to en_ejecucion to avoid races
             $updated = RequestedQuery::where('id', $rq->id)->where('status', 'pendiente')->update(['status' => 'en_ejecucion']);
 
             if (!$updated) {
                 // someone else acquired it, try again
+                Log::warning("[ProcessPendingConsults] Consulta {$rq->id} ya fue adquirida por otro proceso");
                 $this->info("Requested {$rq->id} was acquired by another process, retrying...");
                 continue;
             }
+
+            Log::info("[ProcessPendingConsults] Consulta {$rq->id} marcada como en_ejecucion");
 
             // Process synchronously here (no queues, no dispatch)
             try {
@@ -65,6 +76,8 @@ class ProcessPendingConsults extends Command
                 $details = $rq->details()->where('status', 'pendiente')->get();
 
                 foreach ($details as $detail) {
+                    Log::info("[ProcessPendingConsults] Procesando detalle ID: {$detail->id}, Fuente: {$detail->source}, Doc: {$detail->document_number}");
+                    
                     // prepare payload depending on source
                     $payload = [];
                     $source = $detail->source ?? 'runt_personas';
@@ -85,19 +98,28 @@ class ProcessPendingConsults extends Command
                     }
 
                     // Execute synchronously via trait (will create/update ResultQuery and set detail status)
-                    $this->executeConsulltRunt($payload, $detail);
+                    $result = $this->executeConsulltRunt($payload, $detail);
+                    
+                    // Reload detail to get updated status
+                    $detail->refresh();
+                    Log::info("[ProcessPendingConsults] Detalle {$detail->id} procesado - Estado final: {$detail->status}");
                 }
 
                 $rq->status = 'finalizado';
                 $rq->save();
+                Log::info("[ProcessPendingConsults] Consulta {$rq->id} procesada exitosamente y marcada como finalizado");
                 $this->info("Processed requested {$rq->id} synchronously and marked as finalizado.");
             } catch (Throwable $e) {
                 $rq->status = 'error';
                 $rq->save();
+                Log::error("[ProcessPendingConsults] Error procesando consulta {$rq->id}: {$e->getMessage()}", [
+                    'exception' => $e->getTraceAsString()
+                ]);
                 $this->error("Failed to process requested {$rq->id} synchronously: {$e->getMessage()}");
             }
 
             // Only process one requested per run
+            Log::info("[ProcessPendingConsults] Finalizando ejecución (procesado 1 consulta por ciclo)");
             break;
         }
 
