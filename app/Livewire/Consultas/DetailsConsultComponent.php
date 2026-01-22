@@ -142,6 +142,13 @@ class DetailsConsultComponent extends Component
         $detail->status = 'pendiente';
         $detail->save();
 
+        // If the parent RequestedQuery is 'finalizado', change it to 'pendiente'
+        $requested = $detail->requestedQuery;
+        if ($requested && $requested->status === 'finalizado') {
+            $requested->status = 'pendiente';
+            $requested->save();
+        }
+
         $this->loadData();
         session()->flash('message', 'Registro marcado como pendiente para reconsulta.');
     }
