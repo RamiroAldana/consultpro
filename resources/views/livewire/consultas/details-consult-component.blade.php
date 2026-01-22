@@ -173,7 +173,7 @@
                 cancelButtonText: 'Cancelar',
             }).then(function(result){
                 if (result.isConfirmed) {
-                    Livewire.emit('deleteDetail', id);
+                    @this.call('deleteDetail', id);
                     Swal.fire('Eliminado', 'Registro eliminado correctamente.', 'success');
                 }
             });
@@ -189,7 +189,7 @@
                 cancelButtonText: 'Cancelar',
             }).then(function(result){
                 if (result.isConfirmed) {
-                    Livewire.emit('reactivateDetail', id);
+                    @this.call('reactivateDetail', id);
                     Swal.fire('Listo', 'Registro marcado como pendiente.', 'success');
                 }
             });

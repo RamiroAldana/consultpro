@@ -12,7 +12,10 @@ class DetailsConsultComponent extends Component
 {
     use ExecutesApi;
     public $requestedId;
-    protected $listeners = ['deleteDetail', 'reactivateDetail'];
+    protected $listeners = [
+        'deleteDetail' => 'deleteDetail',
+        'reactivateDetail' => 'reactivateDetail',
+    ];
     public $requested;
     public $details;
     public $selectedResult = null;
