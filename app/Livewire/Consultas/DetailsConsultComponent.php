@@ -152,4 +152,42 @@ class DetailsConsultComponent extends Component
         $this->loadData();
         session()->flash('message', 'Registro marcado como pendiente para reconsulta.');
     }
+
+    public function reactivateAllFailed()
+    {
+        if (!$this->requestedId) {
+            session()->flash('error', 'No hay consulta seleccionada.');
+            return;
+        }
+
+        $requested = RequestedQuery::find($this->requestedId);
+        if (!$requested) {
+            session()->flash('error', 'Consulta no encontrada.');
+            return;
+        }
+
+        // Get all failed details
+        $failedDetails = $requested->details()->where('status', 'fallido')->get();
+        
+        if ($failedDetails->isEmpty()) {
+            session()->flash('info', 'No hay registros fallidos para reactivar.');
+            return;
+        }
+
+        $count = 0;
+        foreach ($failedDetails as $detail) {
+            $detail->status = 'pendiente';
+            $detail->save();
+            $count++;
+        }
+
+        // If RequestedQuery is 'finalizado', change it to 'pendiente'
+        if ($requested->status === 'finalizado') {
+            $requested->status = 'pendiente';
+            $requested->save();
+        }
+
+        $this->loadData();
+        session()->flash('message', "Se reactivaron {$count} registros fallidos a pendiente.");
+    }
 }

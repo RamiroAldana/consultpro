@@ -4,7 +4,10 @@
             <h5 class="mb-0">Detalle de consulta {{ $requested->name ?? '-' }}</h5>
             <small class="text-muted">ID: {{ $requested->id ?? '-' }} • Solicitado: {{ optional($requested->created_at)->format('Y-m-d H:i') ?? '-' }}</small>
         </div>
-        <div class="text-end">
+        <div class="text-end d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="confirmReactivateAllFailed(); return false;" title="Reactivar consultas fallidas">
+                <i class="bi bi-arrow-clockwise"></i> Reactivar fallidas
+            </button>
             @php
                 $rawStatus = $requested->status ?? 'pendiente';
                 $rs = strtolower(trim($rawStatus));
@@ -191,6 +194,22 @@
                 if (result.isConfirmed) {
                     @this.call('reactivateDetail', id);
                     Swal.fire('Listo', 'Registro marcado como pendiente.', 'success');
+                }
+            });
+        }
+
+        function confirmReactivateAllFailed() {
+            Swal.fire({
+                title: '¿Reactivar todas las fallidas?',
+                text: 'Todos los registros fallidos se marcarán como pendientes para reconsulta.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, reactivar todas',
+                cancelButtonText: 'Cancelar',
+            }).then(function(result){
+                if (result.isConfirmed) {
+                    @this.call('reactivateAllFailed');
+                    Swal.fire('Listo', 'Registros fallidos reactivados.', 'success');
                 }
             });
         }
